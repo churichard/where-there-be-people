@@ -16,6 +16,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
@@ -122,12 +123,9 @@ public class MapsActivity extends FragmentActivity implements
 
         double currentLatitude = location.getLatitude();
         double currentLongitude = location.getLongitude();
-        currentLatitude = 40.3571;
-        currentLongitude = -74.6702;
 
         LatLng latLng = new LatLng(currentLatitude, currentLongitude);
 
-        //mMap.addMarker(new MarkerOptions().position(new LatLng(currentLatitude, currentLongitude)).title("Current Location"));
         MarkerOptions options = new MarkerOptions()
                 .position(latLng)
                 .title("I am here!");
@@ -146,11 +144,17 @@ public class MapsActivity extends FragmentActivity implements
                         new LatLng(40.3571, -74.6702)
         };
 
+        MarkerOptions options = new MarkerOptions()
+                .position(data[data.length - 1])
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
+                .title("Final position");
+        mMap.addMarker(options);
+
         for (int i = 0; i < data.length - 1; i++) {
             Polyline line = mMap.addPolyline(new PolylineOptions()
                             .add(data[i], data[i+1])
                             .width(8)
-                            .color(Color.RED));
+                            .color(Color.BLUE));
         }
     }
 
