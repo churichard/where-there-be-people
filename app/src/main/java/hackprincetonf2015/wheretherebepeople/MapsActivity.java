@@ -150,8 +150,6 @@ public class MapsActivity extends AppCompatActivity implements
     private void setUpMap() {
         mMap.getUiSettings().setZoomControlsEnabled(true);
         fetchDB();
-        // draw in intervals?
-        drawPath();
     }
 
     private void handleNewLocation(Location location) {
@@ -173,24 +171,28 @@ public class MapsActivity extends AppCompatActivity implements
         mMap.animateCamera(zoom);
     }
 
-    private void drawPath() {
+    private void drawPath(MobileServiceList<Coordinates> points) {
         // fetch coordinate data
-        LatLng[] data = {new LatLng(40.3571, -74.6702),
-                         new LatLng(40.3569, -74.67),
-                         new LatLng(40.3569, -74.66),
-                        new LatLng(40.3567, -74.67),
-                        new LatLng(40.3571, -74.6702)
-        };
+//        LatLng[] data = {new LatLng(40.3571, -74.6702),
+//                         new LatLng(40.3569, -74.67),
+//                         new LatLng(40.3569, -74.66),
+//                        new LatLng(40.3567, -74.67),
+//                        new LatLng(40.3571, -74.6702)
+//        };
 
+        Coordinates last_point = points.get(points.size() - 1);
+        LatLng lastPoint = new LatLng(last_point.latitude, last_point.longitude);
         MarkerOptions options = new MarkerOptions()
-                .position(data[data.length - 1])
+                .position(lastPoint)
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
                 .title("Final position");
         mMap.addMarker(options);
 
-        for (int i = 0; i < data.length - 1; i++) {
+        for (int i = 0; i < points.size() - 1; i++) {
+            LatLng point1 = new LatLng(points.get(i).latitude, points.get(i).longitude);
+            LatLng point2 = new LatLng(points.get(i).latitude, points.get(i+1).longitude);
             Polyline line = mMap.addPolyline(new PolylineOptions()
-                            .add(data[i], data[i+1])
+                            .add(point1, point2)
                             .width(8)
                             .color(Color.BLUE));
         }
@@ -246,19 +248,19 @@ public class MapsActivity extends AppCompatActivity implements
     }
 
     private void fetchDB() {
-        new AsyncTask<Void, Void, Void>() {
-            protected Void doInBackground(Void... no) {
-                MobileServiceList<Coordinates> test = null;
+        new AsyncTask<Void, Void, MobileServiceList<Coordinates>>() {
+            protected MobileServiceList<Coordinates> doInBackground(Void... no) {
+                MobileServiceList<Coordinates> coordinates = null;
                 try {
-                    test = mClient.getTable(Coordinates.class).where().field("userId").eq(thisUser).execute().get();
+                    coordinates = mClient.getTable(Coordinates.class).where().field("userId").eq(thisUser).execute().get();
                 }
                 catch (Exception e) { Log.i(TAG, e.getMessage());}
 
-                for (Coordinates c : test) {
-                    Log.d(TAG, c.latitude + "");
-                }
+                return coordinates;
+            }
 
-                return null;
+            protected void onPostExecute(MobileServiceList<Coordinates> coordinates) {
+                drawPath(coordinates);
             }
         }.execute();
     }
