@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">Where There Be People</string>
     <string name="action_settings">Settings</string>
+    <string name="title_activity_maps">Map</string>
+    <string name="google_maps_key" translatable="false" templateMergeStrategy="preserve">
+        AIzaSyA_lNZZ44uFvfJDCPrdqVIdZ_KVulfPDTk
+    </string>
 </resources>
