@@ -20,16 +20,19 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
-
 import com.microsoft.windowsazure.mobileservices.MobileServiceClient;
 import com.microsoft.windowsazure.mobileservices.MobileServiceList;
 import com.microsoft.windowsazure.mobileservices.http.ServiceFilterResponse;
 import com.microsoft.windowsazure.mobileservices.table.TableOperationCallback;
+import com.twitter.sdk.android.Twitter;
+import com.twitter.sdk.android.core.Callback;
+import com.twitter.sdk.android.core.Result;
+import com.twitter.sdk.android.core.TwitterException;
+import com.twitter.sdk.android.core.TwitterSession;
+import com.twitter.sdk.android.core.models.Tweet;
+import com.twitter.sdk.android.core.models.User;
 
 import java.net.MalformedURLException;
-
-import com.twitter.sdk.android.Twitter;
-import com.twitter.sdk.android.core.TwitterSession;
 
 public class MapsActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
@@ -38,9 +41,10 @@ public class MapsActivity extends AppCompatActivity implements
 
     public static final String TAG = MapsActivity.class.getSimpleName();
 
+    private TwitterSession session;
     private MobileServiceClient mClient;
 
-    private long thisUser = 12345;
+//    private long thisUser = 12345;
 
     /*
      * Define a request code to send to Google Play services
@@ -57,6 +61,17 @@ public class MapsActivity extends AppCompatActivity implements
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+
+        try {
+            mClient = new MobileServiceClient(
+                    "https://wtbp.azure-mobile.net/",
+                    "GfBmrdzCMouqmEAzIFPOCdNWVGFWxE56",
+                    this
+            );
+        } catch (MalformedURLException e) {
+            Log.e(TAG, e.toString());
+        }
+
         setUpMapIfNeeded();
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
@@ -75,17 +90,21 @@ public class MapsActivity extends AppCompatActivity implements
                 .setInterval(10 * 1000)        // 10 seconds, in milliseconds
                 .setFastestInterval(1 * 1000); // 1 second, in milliseconds
 
-    try {
-        mClient = new MobileServiceClient(
-                "https://wtbp.azure-mobile.net/",
-                "GfBmrdzCMouqmEAzIFPOCdNWVGFWxE56",
-                this
-        );
-    } catch (MalformedURLException e) {
-        e.printStackTrace();
-    }
+        session = Twitter.getInstance().core.getSessionManager().getActiveSession();
+        Twitter.getApiClient(session).getAccountService()
+                .verifyCredentials(true, false, new Callback<User>() {
+                    @Override
+                    public void success(Result<User> userResult) {
+                        User user = userResult.data;
+                        Tweet tweet = user.status;
+                        Log.d(TAG, tweet.text + "");
+                    }
 
-        TwitterSession session = Twitter.getInstance().core.getSessionManager().getActiveSession();
+                    @Override
+                    public void failure(TwitterException e) {
+                    }
+
+                });
         String msg = "@" + session.getUserName() + " logged in! (#" + session.getUserId() + ")";
         Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_LONG).show();
     }
@@ -215,14 +234,15 @@ public class MapsActivity extends AppCompatActivity implements
     private void fetchDB() {
         new AsyncTask<Void, Void, Void>() {
             protected Void doInBackground(Void... no) {
-                MobileServiceList<Coordinates> test = null;
                 try {
-                    test = mClient.getTable(Coordinates.class).where().field("userId").eq(thisUser).execute().get();
-                }
-                catch (Exception e) { Log.i(TAG, e.getMessage());}
+                    MobileServiceList<Coordinates> test = mClient.getTable(Coordinates.class).where()
+                            .field("userId").eq(session.getUserId()).execute().get();
 
-                for (Coordinates c : test) {
-                    Log.d(TAG, c.latitude + "");
+                    for (Coordinates c : test) {
+                        Log.d(TAG, c.latitude + "");
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, e.getMessage());
                 }
 
                 return null;
@@ -234,7 +254,7 @@ public class MapsActivity extends AppCompatActivity implements
         Coordinates coordinate = new Coordinates();
         coordinate.latitude = lat;
         coordinate.longitude = lon;
-        coordinate.userId = thisUser;
+        coordinate.userId = session.getUserId();
         mClient.getTable(Coordinates.class).insert(coordinate, new TableOperationCallback<Coordinates>() {
             public void onCompleted(Coordinates entity, Exception exception, ServiceFilterResponse response) {
                 if (exception == null) {
@@ -244,7 +264,7 @@ public class MapsActivity extends AppCompatActivity implements
                 }
             }
         });
-}
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
