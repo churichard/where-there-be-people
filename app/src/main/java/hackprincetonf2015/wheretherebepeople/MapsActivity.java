@@ -2,6 +2,7 @@ package hackprincetonf2015.wheretherebepeople;
 
 import android.content.IntentSender;
 import android.location.Location;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
@@ -16,6 +17,12 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.microsoft.windowsazure.mobileservices.MobileServiceClient;
+import com.microsoft.windowsazure.mobileservices.MobileServiceList;
+import com.microsoft.windowsazure.mobileservices.http.ServiceFilterResponse;
+import com.microsoft.windowsazure.mobileservices.table.TableOperationCallback;
+
+import java.net.MalformedURLException;
 
 public class MapsActivity extends FragmentActivity implements
         GoogleApiClient.ConnectionCallbacks,
@@ -23,6 +30,10 @@ public class MapsActivity extends FragmentActivity implements
         LocationListener {
 
     public static final String TAG = MapsActivity.class.getSimpleName();
+
+    private MobileServiceClient mClient;
+
+    private long thisUser = 12345;
 
     /*
      * Define a request code to send to Google Play services
@@ -52,6 +63,16 @@ public class MapsActivity extends FragmentActivity implements
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(10 * 1000)        // 10 seconds, in milliseconds
                 .setFastestInterval(1 * 1000); // 1 second, in milliseconds
+
+    try {
+        mClient = new MobileServiceClient(
+                "https://wtbp.azure-mobile.net/",
+                "GfBmrdzCMouqmEAzIFPOCdNWVGFWxE56",
+                this
+        );
+    } catch (MalformedURLException e) {
+        e.printStackTrace();
+    }
     }
 
     @Override
@@ -106,7 +127,7 @@ public class MapsActivity extends FragmentActivity implements
      * This should only be called once and when we are sure that {@link #mMap} is not null.
      */
     private void setUpMap() {
-        mMap.addMarker(new MarkerOptions().position(new LatLng(0, 0)).title("Marker"));
+        fetchDB();
     }
 
     private void handleNewLocation(Location location) {
@@ -114,6 +135,8 @@ public class MapsActivity extends FragmentActivity implements
 
         double currentLatitude = location.getLatitude();
         double currentLongitude = location.getLongitude();
+
+        insertDB(currentLatitude, currentLongitude);
 
         LatLng latLng = new LatLng(currentLatitude, currentLongitude);
 
@@ -174,4 +197,38 @@ public class MapsActivity extends FragmentActivity implements
     public void onLocationChanged(Location location) {
         handleNewLocation(location);
     }
+
+    private void fetchDB() {
+        new AsyncTask<Void, Void, Void>() {
+            protected Void doInBackground(Void... no) {
+                MobileServiceList<Coordinates> test = null;
+                try {
+                    test = mClient.getTable(Coordinates.class).where().field("userId").eq(thisUser).execute().get();
+                }
+                catch (Exception e) { Log.i(TAG, e.getMessage());}
+
+                for (Coordinates c : test) {
+                    Log.d(TAG, c.latitude + "");
+                }
+
+                return null;
+            }
+        }.execute();
+    }
+
+    private void insertDB(double lat, double lon) {
+        Coordinates coordinate = new Coordinates();
+        coordinate.latitude = lat;
+        coordinate.longitude = lon;
+        coordinate.userId = thisUser;
+        mClient.getTable(Coordinates.class).insert(coordinate, new TableOperationCallback<Coordinates>() {
+            public void onCompleted(Coordinates entity, Exception exception, ServiceFilterResponse response) {
+                if (exception == null) {
+                    Log.d(TAG, "Insert succeeded");
+                } else {
+                    Log.d(TAG, "Insert failed");
+                }
+            }
+        });
+}
 }
