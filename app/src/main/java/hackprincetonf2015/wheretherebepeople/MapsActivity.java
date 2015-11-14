@@ -10,6 +10,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.widget.Toast;
 import android.graphics.Color;
+import android.os.Handler;
 
 
 import com.google.android.gms.common.ConnectionResult;
@@ -54,16 +55,21 @@ public class MapsActivity extends AppCompatActivity implements
      */
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 
+    private final static int DB_FETCH_DELAY = 10000; // time interval between db fetches
+
     private GoogleMap mMap; // Might be null if Google Play services APK is not available.
 
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
+
+    private Handler fetchHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
         setUpMapIfNeeded();
+        fetchHandler = new Handler();
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         toolbar.setTitle("Where There Be People");
@@ -149,7 +155,7 @@ public class MapsActivity extends AppCompatActivity implements
      */
     private void setUpMap() {
         mMap.getUiSettings().setZoomControlsEnabled(true);
-        fetchDB();
+        fetchDB.run();
     }
 
     private void handleNewLocation(Location location) {
@@ -172,14 +178,6 @@ public class MapsActivity extends AppCompatActivity implements
     }
 
     private void drawPath(MobileServiceList<Coordinates> points) {
-        // fetch coordinate data
-//        LatLng[] data = {new LatLng(40.3571, -74.6702),
-//                         new LatLng(40.3569, -74.67),
-//                         new LatLng(40.3569, -74.66),
-//                        new LatLng(40.3567, -74.67),
-//                        new LatLng(40.3571, -74.6702)
-//        };
-
         Coordinates last_point = points.get(points.size() - 1);
         LatLng lastPoint = new LatLng(last_point.latitude, last_point.longitude);
         MarkerOptions options = new MarkerOptions()
@@ -190,7 +188,7 @@ public class MapsActivity extends AppCompatActivity implements
 
         for (int i = 0; i < points.size() - 1; i++) {
             LatLng point1 = new LatLng(points.get(i).latitude, points.get(i).longitude);
-            LatLng point2 = new LatLng(points.get(i).latitude, points.get(i+1).longitude);
+            LatLng point2 = new LatLng(points.get(i+1).latitude, points.get(i+1).longitude);
             Polyline line = mMap.addPolyline(new PolylineOptions()
                             .add(point1, point2)
                             .width(8)
@@ -247,23 +245,27 @@ public class MapsActivity extends AppCompatActivity implements
         handleNewLocation(location);
     }
 
-    private void fetchDB() {
-        new AsyncTask<Void, Void, MobileServiceList<Coordinates>>() {
-            protected MobileServiceList<Coordinates> doInBackground(Void... no) {
-                MobileServiceList<Coordinates> coordinates = null;
-                try {
-                    coordinates = mClient.getTable(Coordinates.class).where().field("userId").eq(thisUser).execute().get();
+    Runnable fetchDB = new Runnable() {
+        @Override
+        public void run() {
+            new AsyncTask<Void, Void, MobileServiceList<Coordinates>>() {
+                protected MobileServiceList<Coordinates> doInBackground(Void... no) {
+                    MobileServiceList<Coordinates> coordinates = null;
+                    try {
+                        coordinates = mClient.getTable(Coordinates.class).where().field("userId").eq(thisUser).execute().get();
+                    } catch (Exception e) {
+                        Log.i(TAG, e.getMessage());
+                    }
+                    return coordinates;
                 }
-                catch (Exception e) { Log.i(TAG, e.getMessage());}
 
-                return coordinates;
-            }
-
-            protected void onPostExecute(MobileServiceList<Coordinates> coordinates) {
-                drawPath(coordinates);
-            }
-        }.execute();
-    }
+                protected void onPostExecute(MobileServiceList<Coordinates> coordinates) {
+                    drawPath(coordinates);
+                }
+            }.execute();
+            fetchHandler.postDelayed(fetchDB, DB_FETCH_DELAY);
+        }
+    };
 
     private void insertDB(double lat, double lon) {
         Coordinates coordinate = new Coordinates();
