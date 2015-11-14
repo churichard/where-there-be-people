@@ -5,6 +5,7 @@ import android.location.Location;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
+import android.graphics.Color;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -12,10 +13,13 @@ import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.android.gms.maps.model.Polyline;
 
 public class MapsActivity extends FragmentActivity implements
         GoogleApiClient.ConnectionCallbacks,
@@ -106,7 +110,11 @@ public class MapsActivity extends FragmentActivity implements
      * This should only be called once and when we are sure that {@link #mMap} is not null.
      */
     private void setUpMap() {
-        mMap.addMarker(new MarkerOptions().position(new LatLng(0, 0)).title("Marker"));
+        mMap.getUiSettings().setZoomControlsEnabled(true);
+        Log.i("log", "setupMap");
+
+        // draw in intervals?
+        drawPath();
     }
 
     private void handleNewLocation(Location location) {
@@ -114,6 +122,8 @@ public class MapsActivity extends FragmentActivity implements
 
         double currentLatitude = location.getLatitude();
         double currentLongitude = location.getLongitude();
+        currentLatitude = 40.3571;
+        currentLongitude = -74.6702;
 
         LatLng latLng = new LatLng(currentLatitude, currentLongitude);
 
@@ -123,6 +133,25 @@ public class MapsActivity extends FragmentActivity implements
                 .title("I am here!");
         mMap.addMarker(options);
         mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+        CameraUpdate zoom = CameraUpdateFactory.zoomTo(15);
+        mMap.animateCamera(zoom);
+    }
+
+    private void drawPath() {
+        // fetch coordinate data
+        LatLng[] data = {new LatLng(40.3571, -74.6702),
+                         new LatLng(40.3569, -74.67),
+                         new LatLng(40.3569, -74.66),
+                        new LatLng(40.3567, -74.67),
+                        new LatLng(40.3571, -74.6702)
+        };
+
+        for (int i = 0; i < data.length - 1; i++) {
+            Polyline line = mMap.addPolyline(new PolylineOptions()
+                            .add(data[i], data[i+1])
+                            .width(8)
+                            .color(Color.RED));
+        }
     }
 
     @Override
