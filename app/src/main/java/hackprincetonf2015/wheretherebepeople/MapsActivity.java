@@ -9,6 +9,8 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.widget.Toast;
+import android.graphics.Color;
+
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -16,10 +18,14 @@ import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.android.gms.maps.model.Polyline;
 
 import com.microsoft.windowsazure.mobileservices.MobileServiceClient;
 import com.microsoft.windowsazure.mobileservices.MobileServiceList;
@@ -142,7 +148,10 @@ public class MapsActivity extends AppCompatActivity implements
      * This should only be called once and when we are sure that {@link #mMap} is not null.
      */
     private void setUpMap() {
+        mMap.getUiSettings().setZoomControlsEnabled(true);
         fetchDB();
+        // draw in intervals?
+        drawPath();
     }
 
     private void handleNewLocation(Location location) {
@@ -155,12 +164,36 @@ public class MapsActivity extends AppCompatActivity implements
 
         LatLng latLng = new LatLng(currentLatitude, currentLongitude);
 
-        //mMap.addMarker(new MarkerOptions().position(new LatLng(currentLatitude, currentLongitude)).title("Current Location"));
         MarkerOptions options = new MarkerOptions()
                 .position(latLng)
                 .title("I am here!");
         mMap.addMarker(options);
         mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+        CameraUpdate zoom = CameraUpdateFactory.zoomTo(15);
+        mMap.animateCamera(zoom);
+    }
+
+    private void drawPath() {
+        // fetch coordinate data
+        LatLng[] data = {new LatLng(40.3571, -74.6702),
+                         new LatLng(40.3569, -74.67),
+                         new LatLng(40.3569, -74.66),
+                        new LatLng(40.3567, -74.67),
+                        new LatLng(40.3571, -74.6702)
+        };
+
+        MarkerOptions options = new MarkerOptions()
+                .position(data[data.length - 1])
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
+                .title("Final position");
+        mMap.addMarker(options);
+
+        for (int i = 0; i < data.length - 1; i++) {
+            Polyline line = mMap.addPolyline(new PolylineOptions()
+                            .add(data[i], data[i+1])
+                            .width(8)
+                            .color(Color.BLUE));
+        }
     }
 
     @Override
