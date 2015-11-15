@@ -31,10 +31,13 @@ import com.google.android.gms.maps.model.Polyline;
 import com.microsoft.windowsazure.mobileservices.MobileServiceClient;
 import com.microsoft.windowsazure.mobileservices.MobileServiceList;
 import com.microsoft.windowsazure.mobileservices.http.ServiceFilterResponse;
+import com.microsoft.windowsazure.mobileservices.table.MobileServiceTable;
 import com.microsoft.windowsazure.mobileservices.table.TableOperationCallback;
 
 import java.net.MalformedURLException;
+import java.util.Date;
 
+import com.microsoft.windowsazure.mobileservices.table.query.QueryOrder;
 import com.twitter.sdk.android.Twitter;
 import com.twitter.sdk.android.core.TwitterSession;
 
@@ -46,8 +49,10 @@ public class MapsActivity extends AppCompatActivity implements
     public static final String TAG = MapsActivity.class.getSimpleName();
 
     private MobileServiceClient mClient;
+    private MobileServiceTable<Coordinates> mCoordinateTable;
+    private MobileServiceTable<Index> mIndexTable;
 
-    private long thisUser = 12345;
+    private long thisUser = 777777;
 
     /*
      * Define a request code to send to Google Play services
@@ -68,7 +73,20 @@ public class MapsActivity extends AppCompatActivity implements
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-        setUpMapIfNeeded();
+
+        try {
+            mClient = new MobileServiceClient(
+                    "https://wtbp.azure-mobile.net/",
+                    "GfBmrdzCMouqmEAzIFPOCdNWVGFWxE56",
+                    this
+            );
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+
+        mCoordinateTable = mClient.getTable(Coordinates.class);
+        mIndexTable = mClient.getTable(Index.class);
+
         fetchHandler = new Handler();
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
@@ -87,19 +105,11 @@ public class MapsActivity extends AppCompatActivity implements
                 .setInterval(10 * 1000)        // 10 seconds, in milliseconds
                 .setFastestInterval(1 * 1000); // 1 second, in milliseconds
 
-    try {
-        mClient = new MobileServiceClient(
-                "https://wtbp.azure-mobile.net/",
-                "GfBmrdzCMouqmEAzIFPOCdNWVGFWxE56",
-                this
-        );
-    } catch (MalformedURLException e) {
-        e.printStackTrace();
-    }
-
         TwitterSession session = Twitter.getInstance().core.getSessionManager().getActiveSession();
         String msg = "@" + session.getUserName() + " logged in! (#" + session.getUserId() + ")";
         Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_LONG).show();
+
+        setUpMapIfNeeded();
     }
 
     @Override
@@ -178,21 +188,35 @@ public class MapsActivity extends AppCompatActivity implements
     }
 
     private void drawPath(MobileServiceList<Coordinates> points) {
-        Coordinates last_point = points.get(points.size() - 1);
-        LatLng lastPoint = new LatLng(last_point.latitude, last_point.longitude);
-        MarkerOptions options = new MarkerOptions()
-                .position(lastPoint)
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
-                .title("Final position");
-        mMap.addMarker(options);
+//        Coordinates last_point = points.get(points.size() - 1);
+//        LatLng lastPoint = new LatLng(last_point.latitude, last_point.longitude);
+//        MarkerOptions options = new MarkerOptions()
+//                .position(lastPoint)
+//                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
+//                .title("Final position");
+//        mMap.addMarker(options);
+
+        Color heat = new Color();
 
         for (int i = 0; i < points.size() - 1; i++) {
-            LatLng point1 = new LatLng(points.get(i).latitude, points.get(i).longitude);
-            LatLng point2 = new LatLng(points.get(i+1).latitude, points.get(i+1).longitude);
-            Polyline line = mMap.addPolyline(new PolylineOptions()
-                            .add(point1, point2)
-                            .width(8)
-                            .color(Color.BLUE));
+            Log.d(TAG, ""+points.get(i).userId+": "+points.get(i).latitude+", " +points.get(i).longitude);
+
+            if (points.get(i).userId == points.get(i+1).userId) {
+                LatLng point1 = new LatLng(points.get(i).latitude, points.get(i).longitude);
+                LatLng point2 = new LatLng(points.get(i + 1).latitude, points.get(i + 1).longitude);
+                mMap.addPolyline(new PolylineOptions()
+                        .add(point1, point2)
+                        .width(16)
+                        .color(heat.argb(50, 160, 0, 0)));
+            }
+            else {
+                LatLng lastPoint = new LatLng(points.get(i).latitude, points.get(i).longitude);
+                MarkerOptions options = new MarkerOptions()
+                .position(lastPoint)
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
+                .title("Current location");
+                mMap.addMarker(options);
+            }
         }
     }
 
@@ -251,19 +275,28 @@ public class MapsActivity extends AppCompatActivity implements
             new AsyncTask<Void, Void, MobileServiceList<Coordinates>>() {
                 protected MobileServiceList<Coordinates> doInBackground(Void... no) {
                     MobileServiceList<Coordinates> coordinates = null;
+                    //MobileServiceList<Index> users = null;
                     try {
-                        coordinates = mClient.getTable(Coordinates.class).where().field("userId").eq(thisUser).execute().get();
+                        //mCoordinateTable.where().field("userId").eq(thisUser).execute().get();
+                        coordinates = mCoordinateTable.
+                                orderBy("time", QueryOrder.Ascending).
+//                                orderBy("userId", QueryOrder.Ascending).
+                                execute().get();
+
+                        Log.e(TAG, "coordinates: "+coordinates.size());
+                        //users = mIndexTable.select("userId").execute().get();
                     } catch (Exception e) {
-                        Log.i(TAG, e.getMessage());
+                        Log.e(TAG, "ERROR NULLPOINTEREXCEPTION");
                     }
                     return coordinates;
                 }
 
                 protected void onPostExecute(MobileServiceList<Coordinates> coordinates) {
+                    Log.e(TAG, "ERROR EXECUTED");
                     drawPath(coordinates);
                 }
             }.execute();
-            fetchHandler.postDelayed(fetchDB, DB_FETCH_DELAY);
+            //fetchHandler.postDelayed(this, DB_FETCH_DELAY);
         }
     };
 
@@ -272,7 +305,8 @@ public class MapsActivity extends AppCompatActivity implements
         coordinate.latitude = lat;
         coordinate.longitude = lon;
         coordinate.userId = thisUser;
-        mClient.getTable(Coordinates.class).insert(coordinate, new TableOperationCallback<Coordinates>() {
+        coordinate.time = new Date().getTime();
+        mCoordinateTable.insert(coordinate, new TableOperationCallback<Coordinates>() {
             public void onCompleted(Coordinates entity, Exception exception, ServiceFilterResponse response) {
                 if (exception == null) {
                     Log.d(TAG, "Insert succeeded");
