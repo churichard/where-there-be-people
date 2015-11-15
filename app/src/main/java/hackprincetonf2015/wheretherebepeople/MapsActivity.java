@@ -198,24 +198,34 @@ public class MapsActivity extends AppCompatActivity implements
 
         Color heat = new Color();
 
-        for (int i = 0; i < points.size() - 1; i++) {
-            Log.d(TAG, ""+points.get(i).userId+": "+points.get(i).latitude+", " +points.get(i).longitude);
+        PolylineOptions currentline = new PolylineOptions();
 
-            if (points.get(i).userId == points.get(i+1).userId) {
+        for (int i = 0; i < points.size() - 1; i++) {
+            Log.d(TAG, ""+points.get(i).userid+": "+points.get(i).latitude+", " +points.get(i).longitude);
+
+            if (points.get(i).userid == points.get(i+1).userid) {
                 LatLng point1 = new LatLng(points.get(i).latitude, points.get(i).longitude);
                 LatLng point2 = new LatLng(points.get(i + 1).latitude, points.get(i + 1).longitude);
-                mMap.addPolyline(new PolylineOptions()
-                        .add(point1, point2)
-                        .width(16)
-                        .color(heat.argb(50, 160, 0, 0)));
+                currentline.add(point1).width(16).color(heat.argb(50, 160, 0, 0));
             }
             else {
                 LatLng lastPoint = new LatLng(points.get(i).latitude, points.get(i).longitude);
-                MarkerOptions options = new MarkerOptions()
-                .position(lastPoint)
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
-                .title("Current location");
-                mMap.addMarker(options);
+                if (points.get(i).userid == thisUser) {
+                    MarkerOptions options = new MarkerOptions()
+                            .position(lastPoint)
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
+                            .title("Your location");
+                    mMap.addMarker(options);
+                }
+                else {
+                    MarkerOptions options = new MarkerOptions()
+                            .position(lastPoint)
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+
+                    mMap.addMarker(options);
+                }
+                mMap.addPolyline(currentline.add(lastPoint));
+                currentline = new PolylineOptions();
             }
         }
     }
@@ -280,7 +290,7 @@ public class MapsActivity extends AppCompatActivity implements
                         //mCoordinateTable.where().field("userId").eq(thisUser).execute().get();
                         coordinates = mCoordinateTable.
                                 orderBy("time", QueryOrder.Ascending).
-//                                orderBy("userId", QueryOrder.Ascending).
+                                orderBy("userid", QueryOrder.Ascending).
                                 execute().get();
 
                         Log.e(TAG, "coordinates: "+coordinates.size());
@@ -296,7 +306,7 @@ public class MapsActivity extends AppCompatActivity implements
                     drawPath(coordinates);
                 }
             }.execute();
-            //fetchHandler.postDelayed(this, DB_FETCH_DELAY);
+            fetchHandler.postDelayed(this, DB_FETCH_DELAY);
         }
     };
 
@@ -304,7 +314,7 @@ public class MapsActivity extends AppCompatActivity implements
         Coordinates coordinate = new Coordinates();
         coordinate.latitude = lat;
         coordinate.longitude = lon;
-        coordinate.userId = thisUser;
+        coordinate.userid = thisUser;
         coordinate.time = new Date().getTime();
         mCoordinateTable.insert(coordinate, new TableOperationCallback<Coordinates>() {
             public void onCompleted(Coordinates entity, Exception exception, ServiceFilterResponse response) {
