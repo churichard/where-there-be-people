@@ -10,7 +10,6 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
-import android.widget.Toast;
 
 import com.android.volley.AuthFailureError;
 import com.android.volley.DefaultRetryPolicy;
@@ -25,7 +24,6 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
@@ -258,9 +256,7 @@ public class MapsActivity extends AppCompatActivity implements
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
                 .title("Your location");
         mMap.addMarker(options);
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
-        CameraUpdate zoom = CameraUpdateFactory.zoomTo(15);
-        mMap.animateCamera(zoom);
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15.0f));
     }
 
     private void drawPath(MobileServiceList<Coordinates> points) {
