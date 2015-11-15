@@ -72,6 +72,7 @@ public class MapsActivity extends AppCompatActivity implements
     private MobileServiceClient mClient;
     private MobileServiceTable<Coordinates> mCoordinateTable;
     private MobileServiceList<Coordinates> coordinates;
+    private boolean isInserting;
 
     private boolean touched, doubleclick;
     private long time1, time2, time3;
@@ -86,14 +87,14 @@ public class MapsActivity extends AppCompatActivity implements
 
     private final static int DB_FETCH_DELAY = 10000; // time interval between db fetches
 
-    private double score = -1.0; // tweet score of user
+    private double score = 0.5; // tweet score of user
 
     private GoogleMap mMap; // Might be null if Google Play services APK is not available.
 
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
     private RequestQueue queue;
-    private String userId;
+    private String userId = "1234";
 
     private Handler fetchHandler;
 
@@ -163,7 +164,12 @@ public class MapsActivity extends AppCompatActivity implements
                     HttpMethod.GET,
                     new GraphRequest.Callback() {
                         public void onCompleted(GraphResponse response) {
-                            userId = response.getJSONObject().optString("id");
+                            String temp = response.getJSONObject().optString("id");
+                            if (temp != null) {
+                                userId = temp;
+                            } else {
+                                userId = "1234";
+                            }
                         }
                     }
             ).executeAsync();
@@ -206,7 +212,6 @@ public class MapsActivity extends AppCompatActivity implements
                     @Override
                     public void onResponse(String response) {
                         try {
-                            Log.d("AZURE response", response+"");
                             JSONObject jsonObject = new JSONObject(response);
                             score = jsonObject.optDouble("Score");
                             Log.d("Score", score + "");
@@ -268,12 +273,14 @@ public class MapsActivity extends AppCompatActivity implements
             }
         }
     }
+
     private void setUpMap() {
         mMap.getUiSettings().setZoomControlsEnabled(true);
         touched = false;
         doubleclick = false;
         mMap.setOnMapClickListener(this);
 //        testPoints();
+//        demo();
         fetchDB.run();
     }
 
@@ -291,11 +298,10 @@ public class MapsActivity extends AppCompatActivity implements
                     .position(latlng)
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
                     .title("Your location");
-        }
-        else {
+        } else {
             float[] hsv = new float[3];
             double user_score = point.score;
-            Color.RGBToHSV((int)(user_score * 255), 0, (int)((1 - user_score) * 255), hsv);
+            Color.RGBToHSV((int) (user_score * 255), 0, (int) ((1 - user_score) * 255), hsv);
             options = new MarkerOptions()
                     .position(latlng)
                     .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
@@ -306,11 +312,18 @@ public class MapsActivity extends AppCompatActivity implements
     private void drawPath(MobileServiceList<Coordinates> points) {
         mMap.clear();
 
+        LatLng latlng = new LatLng(40.350293, -74.652696);
+        MarkerOptions options2 = new MarkerOptions()
+                .position(latlng)
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+                .title("Your location");
+        mMap.addMarker(options2);
+
         MarkerOptions options;
         PolylineOptions currentline = new PolylineOptions();
 
         for (int i = 0; i < points.size() - 1; i++) {
-//            Log.d(TAG, "" + points.get(i).userid + ": " + points.get(i).latitude + ", " + points.get(i).longitude);
+            Log.d(TAG, "" + points.get(i).userid + ": " + points.get(i).latitude + ", " + points.get(i).longitude);
             if (points.get(i).userid.equals(points.get(i + 1).userid)) {
                 LatLng point1 = new LatLng(points.get(i).latitude, points.get(i).longitude);
 //                LatLng point2 = new LatLng(points.get(i + 1).latitude, points.get(i + 1).longitude);
@@ -350,7 +363,7 @@ public class MapsActivity extends AppCompatActivity implements
                     .position(lastPoint)
                     .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
         }
-        options = getMarkerOptions(lastPoint, points.get(points.size()-1));
+        options = getMarkerOptions(lastPoint, points.get(points.size() - 1));
         mMap.addMarker(options);
         mMap.addPolyline(currentline.add(lastPoint));
     }
@@ -362,14 +375,9 @@ public class MapsActivity extends AppCompatActivity implements
             LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
         } else {
             handleNewLocation(location);
-            double currentLatitude = location.getLatitude();
-            double currentLongitude = location.getLongitude();
-
-            insertDB(currentLatitude, currentLongitude);
-
-            LatLng latLng = new LatLng(currentLatitude, currentLongitude);
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15.0f));
         }
+        LatLng latLng = new LatLng(40.344878, -74.653632);
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15.0f));
     }
 
     @Override
@@ -421,7 +429,7 @@ public class MapsActivity extends AppCompatActivity implements
                     try {
                         coordinates = mCoordinateTable.
                                 orderBy("userid", QueryOrder.Ascending).
-                                orderBy("time", QueryOrder.Ascending).
+                                orderBy("time", QueryOrder.Ascending).top(1000).
                                 execute().get();
                     } catch (Exception e) {
                         Log.e(TAG, "ERROR NULLPOINTEREXCEPTION");
@@ -438,70 +446,76 @@ public class MapsActivity extends AppCompatActivity implements
             fetchHandler.postDelayed(this, DB_FETCH_DELAY);
         }
     };
-    
-    private void demo() {
-     	new AsyncTask<Void, Void, MobileServiceList<Coordinates>>() { 
-     		protected MobileServiceList<Coordinates> doInBackground(Void... no) {
-     			final int numUsers = 10;
-     			double[] scores = new double[numUsers];
-     			for (int i = 0; i < numUsers; i++) {
-     				scores[i] = Math.random();
-     			}
-     			
-     			double baseLat = 40.3571, baseLon = -74.6702; //please set location to princeton
-     			double[] latdiff = new double[numUsers];
-     			double[] londiff = new double[numUsers];
-     			for (int i = 0; i < numUsers; i++) {
-     			        latdiff[i] += (Math.random()-.5);
-     			        londiff[i] += (Math.random()-.5);
-     			}
-     			
-     			while(true) {
-     				for (int i = 0; i<numUsers; i++) {
-     					Coordinates coordinate = new Coordinates(); 
-     					coordinate.latitude = baseLat + latdiff[i]; 
-     					coordinate.longitude = baseLon + londiff[i]; 
-     					coordinate.userid = ""+i; 
-     					coordinate.score = scores[i];
-     					coordinate.time = new Date().getTime(); 
-     					mCoordinateTable.insert(coordinate, new TableOperationCallback<Coordinates>() { 
-     						public void onCompleted(Coordinates entity, Exception exception, ServiceFilterResponse response) { 
-     							if (exception == null) { 
-     								//Log.d(TAG, "Insert succeeded: user " + i); 
-     							} else { 
-     								//Log.d(TAG, "Insert failed"); 
-     							} 
-     						} 
-     					});
-                                        //update score
-     					scores[i] += (Math.random()-.5)/5;
-     					if (scores[i] >= 1) scores[i] = .99;
-                                        if (scores[i] < 0) scores[i] = 0;
-                                        
-                                        //update location
-     					latdiff[i] += (Math.random()-.5)/5;
-     					londiff[i] += (Math.random()-.5)/5;
-     				}
-     				//potentially wait
-     			}
-     		}
 
-     	}.execute();
-     }
-    
+    private void demo() {
+//     	new AsyncTask<Void, Void, MobileServiceList<Coordinates>>() {
+//     		protected MobileServiceList<Coordinates> doInBackground(Void... no) {
+        final int numUsers = 9;
+        double[] scores = new double[numUsers];
+        for (int i = 0; i < numUsers; i++) {
+            scores[i] = Math.random();
+        }
+
+        double baseLat = 40.344878, baseLon = -74.653632; //please set location to princeton
+        double[] latdiff = new double[numUsers];
+        double[] londiff = new double[numUsers];
+        for (int i = 0; i < numUsers; i++) {
+            latdiff[i] += (Math.random() - .5) * 0.01;
+            londiff[i] += (Math.random() - .5) * 0.01;
+        }
+
+        for (int j = 0; j < 1000; j++) {
+            for (int i = 0; i < numUsers; i++) {
+                Coordinates coordinate = new Coordinates();
+                coordinate.latitude = baseLat + latdiff[i];
+                coordinate.longitude = baseLon + londiff[i];
+                coordinate.userid = "" + i;
+                coordinate.score = scores[i];
+                coordinate.time = new Date().getTime();
+                mCoordinateTable.insert(coordinate, new TableOperationCallback<Coordinates>() {
+                    public void onCompleted(Coordinates entity, Exception exception, ServiceFilterResponse response) {
+                        if (exception == null) {
+                            //Log.d(TAG, "Insert succeeded: user " + i);
+                        } else {
+                            //Log.d(TAG, "Insert failed");
+                        }
+                    }
+                });
+                //update score
+                scores[i] += (Math.random() - .5) / 5;
+                if (scores[i] >= 1) scores[i] = .99;
+                if (scores[i] < 0) scores[i] = 0;
+
+                //update location
+                latdiff[i] += (Math.random() - .5) * 0.002;
+                londiff[i] += (Math.random() - .5) * 0.002;
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    Log.e(TAG, e.toString());
+                }
+            }
+            //potentially wait
+        }
+//     		}
+//
+//     	}.execute();
+    }
+
     private void testPoints() {
-        double lat = Math.random()*90;
-        double lon = Math.random()*180;
+        double lat = Math.random() * 90;
+        double lon = Math.random() * 180;
 
         for (int i = 0; i < 20; i++) {
 
-            lat += 5*(Math.random()-.5);
-            lon += 10*(Math.random()-.5);
+            lat += 5 * (Math.random() - .5);
+            lon += 10 * (Math.random() - .5);
 
             insertDB(lat, lon);
         }
 
     }
+
     private void insertDB(double lat, double lon) {
         Log.d("Insert DB Score", score + "");
         if (score >= 0) {
@@ -538,8 +552,7 @@ public class MapsActivity extends AppCompatActivity implements
                 time1 = time2;
                 lat1 = point.latitude;
                 lon1 = point.longitude;
-            }
-            else {
+            } else {
                 lat2 = point.latitude;
                 lon2 = point.longitude;
 
@@ -584,36 +597,31 @@ public class MapsActivity extends AppCompatActivity implements
                     }
                     if (usercount > 0) avgsum += sum / usercount;
                 }
-                double happy = 100*avgsum/diffcount;
+                double happy = 100 * avgsum / diffcount;
                 String s;
-                if (happy >= 55 && happy <= 70){
+                if (happy >= 55 && happy <= 70) {
                     s = "happy.  :)";
-                }
-                else if (happy > 70) {
+                } else if (happy > 70) {
                     s = "very happy!  :D";
-                }
-                else if (happy <= 45 && happy >= 30){
+                } else if (happy <= 45 && happy >= 30) {
                     s = "sad.  :(";
-                }
-                else if (happy < 30) {
+                } else if (happy < 30) {
                     s = "very sad...  :'(";
-                }
-                else {
+                } else {
                     s = "neutral.  :|";
                 }
                 Toast.makeText(getApplicationContext(),
-                        "The average happiness here is: "+String.format("%.2f", 100*avgsum/diffcount)+"%,\nwhich seems to be: "+s,
+                        "The average happiness here is: " + String.format("%.2f", 100 * avgsum / diffcount) + "%,\nwhich seems to be: " + s,
                         Toast.LENGTH_SHORT).show();
-                Log.e(TAG, ""+100*avgsum/diffcount+"%");
+                Log.e(TAG, "" + 100 * avgsum / diffcount + "%");
 
                 touched = false;
             }
-        }
-        else {
+        } else {
             time1 = new Date().getTime();
             touched = true;
             lat1 = point.latitude;
             lon1 = point.longitude;
         }
-        }
     }
+}
