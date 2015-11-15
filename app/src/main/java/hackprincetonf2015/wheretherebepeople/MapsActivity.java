@@ -10,6 +10,14 @@ import android.util.Log;
 import android.view.Menu;
 import android.widget.Toast;
 
+import com.android.volley.AuthFailureError;
+import com.android.volley.DefaultRetryPolicy;
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.Volley;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
@@ -32,7 +40,12 @@ import com.twitter.sdk.android.core.TwitterSession;
 import com.twitter.sdk.android.core.models.Tweet;
 import com.twitter.sdk.android.core.models.User;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.net.MalformedURLException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MapsActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
@@ -56,6 +69,7 @@ public class MapsActivity extends AppCompatActivity implements
 
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
+    private RequestQueue queue;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,6 +104,8 @@ public class MapsActivity extends AppCompatActivity implements
                 .setInterval(10 * 1000)        // 10 seconds, in milliseconds
                 .setFastestInterval(1 * 1000); // 1 second, in milliseconds
 
+        queue = Volley.newRequestQueue(getApplicationContext());
+
         session = Twitter.getInstance().core.getSessionManager().getActiveSession();
         Twitter.getApiClient(session).getAccountService()
                 .verifyCredentials(true, false, new Callback<User>() {
@@ -98,6 +114,46 @@ public class MapsActivity extends AppCompatActivity implements
                         User user = userResult.data;
                         Tweet tweet = user.status;
                         Log.d(TAG, tweet.text + "");
+
+                        String tweetText = tweet.text.replace(" ", "+");
+
+                        StringRequest request = new StringRequest(
+                                Request.Method.GET,
+                                "https://api.datamarket.azure.com/data.ashx/amla/text-analytics/v1/GetSentiment?Text=" + tweetText,
+                                new Response.Listener<String>() {
+                                    @Override
+                                    public void onResponse(String response) {
+                                        try {
+                                            JSONObject jsonObject = new JSONObject(response);
+                                            double score = jsonObject.optDouble("Score");
+                                            Log.d("Score", score + ""); // TODO use this score for something
+                                        } catch (JSONException e) {
+                                            Log.e(TAG, e.toString());
+                                        }
+                                    }
+                                },
+                                new Response.ErrorListener() {
+                                    @Override
+                                    public void onErrorResponse(VolleyError error) {
+                                        if (error.networkResponse != null && error.networkResponse.data != null) {
+                                            Log.e(TAG, new VolleyError(new String(error.networkResponse.data)).toString());
+                                        }
+                                    }
+                                }) {
+                            @Override
+                            public Map<String, String> getHeaders() throws AuthFailureError {
+                                HashMap<String, String> params = new HashMap<>();
+                                params.put("Authorization", "Basic QWNjb3VudEtleTo1OGg1NFNLYkdSVXc0QWdvK2lmRG5WbjdMZUZmTzY2b21WQitWNUQ3ZGxR");
+                                params.put("Accept", "application/json");
+
+                                return params;
+                            }
+                        };
+                        request.setRetryPolicy(new DefaultRetryPolicy(
+                                10000,
+                                DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
+                                DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
+                        queue.add(request);
                     }
 
                     @Override
