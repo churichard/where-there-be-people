@@ -88,7 +88,7 @@ public class MapsActivity extends AppCompatActivity implements
      */
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 
-    private final static int DB_FETCH_DELAY = 1000; // time interval between db fetches
+    private final static int DB_FETCH_DELAY = 10000; // time interval between db fetches
 
     private double score = -1.0; // tweet score of user
 
@@ -116,7 +116,6 @@ public class MapsActivity extends AppCompatActivity implements
         }
 
         mCoordinateTable = mClient.getTable(Coordinates.class);
-
         fetchHandler = new Handler();
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
@@ -157,7 +156,7 @@ public class MapsActivity extends AppCompatActivity implements
                                         try {
                                             JSONObject jsonObject = new JSONObject(response);
                                             score = jsonObject.optDouble("Score");
-                                            Log.d("Score", score + ""); // TODO use this score for something
+                                            Log.d("Score", score + "");
 
                                         } catch (JSONException e) {
                                             Log.e(TAG, e.toString());
@@ -246,6 +245,25 @@ public class MapsActivity extends AppCompatActivity implements
         insertDB(currentLatitude, currentLongitude);
     }
 
+    private MarkerOptions getMarkerOptions(LatLng latlng, Coordinates point) {
+        MarkerOptions options;
+        if (point.userid.equals(""+session.getUserId())) {
+            options = new MarkerOptions()
+                    .position(latlng)
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+                    .title("Your location");
+        }
+        else {
+            float[] hsv = new float[3];
+            double user_score = point.score;
+            Color.RGBToHSV((int)(user_score * 255), 0, (int)((1 - user_score) * 255), hsv);
+            options = new MarkerOptions()
+                    .position(latlng)
+                    .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
+        }
+        return options;
+    }
+
     private void drawPath(MobileServiceList<Coordinates> points) {
         mMap.clear();
 
@@ -262,7 +280,7 @@ public class MapsActivity extends AppCompatActivity implements
             }
             else {
                 LatLng lastPoint = new LatLng(points.get(i).latitude, points.get(i).longitude);
-                if (points.get(i).userid == ""+session.getUserId()) {
+                if (points.get(i).userid.equals(""+session.getUserId())) {
                     options = new MarkerOptions()
                             .position(lastPoint)
                             .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
@@ -276,6 +294,7 @@ public class MapsActivity extends AppCompatActivity implements
                             .position(lastPoint)
                             .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
                 }
+                options = getMarkerOptions(lastPoint, points.get(i));
                 mMap.addMarker(options);
                 mMap.addPolyline(currentline.add(lastPoint));
                 currentline = new PolylineOptions();
@@ -283,7 +302,7 @@ public class MapsActivity extends AppCompatActivity implements
         }
 
         LatLng lastPoint = new LatLng(points.get(points.size()-1).latitude, points.get(points.size()-1).longitude);
-        if (points.get(points.size()-1).userid == ""+session.getUserId()) {
+        if (points.get(points.size()-1).userid.equals(""+session.getUserId())) {
             options = new MarkerOptions()
                     .position(lastPoint)
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
@@ -297,6 +316,7 @@ public class MapsActivity extends AppCompatActivity implements
                     .position(lastPoint)
                     .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
         }
+        options = getMarkerOptions(lastPoint, points.get(points.size()-1));
         mMap.addMarker(options);
         mMap.addPolyline(currentline.add(lastPoint));
     }
@@ -363,6 +383,7 @@ public class MapsActivity extends AppCompatActivity implements
             new AsyncTask<Void, Void, MobileServiceList<Coordinates>>() {
                 protected MobileServiceList<Coordinates> doInBackground(Void... no) {
                     coordinates = null;
+                    MobileServiceList<Coordinates> coordinates = null;
                     try {
                         coordinates = mCoordinateTable.
                                 orderBy("userid", QueryOrder.Ascending).
@@ -383,7 +404,6 @@ public class MapsActivity extends AppCompatActivity implements
             fetchHandler.postDelayed(this, DB_FETCH_DELAY);
         }
     };
-
     private void testPoints() {
         double lat = Math.random()*90;
         double lon = Math.random()*180;
