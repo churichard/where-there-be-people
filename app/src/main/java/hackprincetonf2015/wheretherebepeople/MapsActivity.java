@@ -6,10 +6,14 @@ import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
+import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
+import android.view.MotionEvent;
+import android.view.View;
+import android.widget.Toast;
 
 import com.android.volley.AuthFailureError;
 import com.android.volley.DefaultRetryPolicy;
@@ -29,8 +33,13 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polygon;
+import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.android.gms.maps.GoogleMap.OnMapClickListener;
+
 import com.microsoft.windowsazure.mobileservices.MobileServiceClient;
 import com.microsoft.windowsazure.mobileservices.MobileServiceList;
 import com.microsoft.windowsazure.mobileservices.http.ServiceFilterResponse;
@@ -56,14 +65,20 @@ import java.util.Map;
 public class MapsActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
-        LocationListener {
+        LocationListener, GoogleMap.OnMapClickListener{
 
     public static final String TAG = MapsActivity.class.getSimpleName();
 
     private TwitterSession session;
     private MobileServiceClient mClient;
     private MobileServiceTable<Coordinates> mCoordinateTable;
-    private MobileServiceTable<Index> mIndexTable;
+    private MobileServiceList<Coordinates> coordinates;
+
+    private boolean touched, doubleclick;
+    private long time1, time2, time3;
+    private double lat1, lon1, lat2, lon2;
+    private LatLng southwest, northeast;
+
 
 //    private long thisUser = 12345;
 
@@ -101,7 +116,6 @@ public class MapsActivity extends AppCompatActivity implements
         }
 
         mCoordinateTable = mClient.getTable(Coordinates.class);
-        mIndexTable = mClient.getTable(Index.class);
 
         fetchHandler = new Handler();
 
@@ -204,21 +218,6 @@ public class MapsActivity extends AppCompatActivity implements
         }
     }
 
-    /**
-     * Sets up the map if it is possible to do so (i.e., the Google Play services APK is correctly
-     * installed) and the map has not already been instantiated.. This will ensure that we only ever
-     * call {@link #setUpMap()} once when {@link #mMap} is not null.
-     * <p/>
-     * If it isn't installed {@link SupportMapFragment} (and
-     * {@link com.google.android.gms.maps.MapView MapView}) will show a prompt for the user to
-     * install/update the Google Play services APK on their device.
-     * <p/>
-     * A user can return to this FragmentActivity after following the prompt and correctly
-     * installing/updating/enabling the Google Play services. Since the FragmentActivity may not
-     * have been completely destroyed during this process (it is likely that it would only be
-     * stopped or paused), {@link #onCreate(Bundle)} may not be called again so we should call this
-     * method in {@link #onResume()} to guarantee that it will be called.
-     */
     private void setUpMapIfNeeded() {
         // Do a null check to confirm that we have not already instantiated the map.
         if (mMap == null) {
@@ -231,22 +230,16 @@ public class MapsActivity extends AppCompatActivity implements
             }
         }
     }
-
-    /**
-     * This is where we can add markers or lines, add listeners or move the camera. In this case, we
-     * just add a marker near Africa.
-     * <p/>
-     * This should only be called once and when we are sure that {@link #mMap} is not null.
-     */
     private void setUpMap() {
         mMap.getUiSettings().setZoomControlsEnabled(true);
+        touched = false;
+        doubleclick = false;
+        mMap.setOnMapClickListener(this);
 //        testPoints();
         fetchDB.run();
     }
 
     private void handleNewLocation(Location location) {
-        Log.d(TAG, location.toString());
-
         double currentLatitude = location.getLatitude();
         double currentLongitude = location.getLongitude();
 
@@ -262,8 +255,6 @@ public class MapsActivity extends AppCompatActivity implements
         PolylineOptions currentline = new PolylineOptions();
 
         for (int i = 0; i < points.size() - 1; i++) {
-            Log.d(TAG, ""+points.get(i).userid+": "+points.get(i).latitude+", " +points.get(i).longitude);
-
             if (points.get(i).userid == points.get(i+1).userid) {
                 LatLng point1 = new LatLng(points.get(i).latitude, points.get(i).longitude);
                 LatLng point2 = new LatLng(points.get(i + 1).latitude, points.get(i + 1).longitude);
@@ -271,7 +262,7 @@ public class MapsActivity extends AppCompatActivity implements
             }
             else {
                 LatLng lastPoint = new LatLng(points.get(i).latitude, points.get(i).longitude);
-                if (points.get(i).userid == session.getUserId()) {
+                if (points.get(i).userid == ""+session.getUserId()) {
                     options = new MarkerOptions()
                             .position(lastPoint)
                             .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
@@ -292,7 +283,7 @@ public class MapsActivity extends AppCompatActivity implements
         }
 
         LatLng lastPoint = new LatLng(points.get(points.size()-1).latitude, points.get(points.size()-1).longitude);
-        if (points.get(points.size()-1).userid == session.getUserId()) {
+        if (points.get(points.size()-1).userid == ""+session.getUserId()) {
             options = new MarkerOptions()
                     .position(lastPoint)
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
@@ -371,17 +362,12 @@ public class MapsActivity extends AppCompatActivity implements
         public void run() {
             new AsyncTask<Void, Void, MobileServiceList<Coordinates>>() {
                 protected MobileServiceList<Coordinates> doInBackground(Void... no) {
-                    MobileServiceList<Coordinates> coordinates = null;
-                    //MobileServiceList<Index> users = null;
+                    coordinates = null;
                     try {
                         coordinates = mCoordinateTable.
                                 orderBy("userid", QueryOrder.Ascending).
                                 orderBy("time", QueryOrder.Ascending).
                                 execute().get();
-
-                        for (Coordinates c : coordinates) {
-                            Log.d(TAG, "userid: " + c.userid + " , time: " + c.time);
-                        }
                     } catch (Exception e) {
                         Log.e(TAG, "ERROR NULLPOINTEREXCEPTION");
                     }
@@ -411,13 +397,12 @@ public class MapsActivity extends AppCompatActivity implements
         }
 
     }
-
     private void insertDB(double lat, double lon) {
         if (score >= 0) {
             Coordinates coordinate = new Coordinates();
             coordinate.latitude = lat;
             coordinate.longitude = lon;
-            coordinate.userid = session.getUserId();
+            coordinate.userid = ""+session.getUserId();
             coordinate.score = score;
             coordinate.time = new Date().getTime();
             mCoordinateTable.insert(coordinate, new TableOperationCallback<Coordinates>() {
@@ -438,4 +423,90 @@ public class MapsActivity extends AppCompatActivity implements
         getMenuInflater().inflate(R.menu.menu_maps, menu);
         return true;
     }
-}
+
+    public void onMapClick(LatLng point) {
+        if (touched) {
+            time2 = new Date().getTime();
+            if (time2 - time1 > 2000) {
+                time1 = time2;
+                lat1 = point.latitude;
+                lon1 = point.longitude;
+            }
+            else {
+                lat2 = point.latitude;
+                lon2 = point.longitude;
+
+                if (lat2 - lat1 >= 0 && lon2 - lon1 >= 0) {
+                    southwest = new LatLng(lat1, lon1);
+                    northeast = new LatLng(lat2, lon2);
+                } else if (lat2 - lat1 < 0 && lon2 - lon1 >= 0) {
+                    southwest = new LatLng(lat2, lon1);
+                    northeast = new LatLng(lat1, lon2);
+                } else if (lat2 - lat1 >= 0 && lon2 - lon1 < 0) {
+                    southwest = new LatLng(lat1, lon2);
+                    northeast = new LatLng(lat2, lon1);
+                } else {
+                    southwest = new LatLng(lat2, lon2);
+                    northeast = new LatLng(lat1, lon1);
+                }
+                LatLngBounds rectangle = new LatLngBounds(southwest, northeast);
+                Color fill = new Color();
+                Polygon polygon = mMap.addPolygon(new PolygonOptions()
+                        .add(new LatLng(lat1, lon1), new LatLng(lat2, lon1), new LatLng(lat2, lon2), new LatLng(lat1, lon2))
+                        .strokeColor(Color.CYAN)
+                        .fillColor(fill.argb(50, 0, 100, 50)));
+                String temp = "";
+                int diffcount = 1;
+                int usercount = 0;
+                double sum = 0;
+                double avgsum = 0;
+                if (coordinates != null) {
+                    for (Coordinates c : coordinates) {
+                        if (!rectangle.contains(new LatLng(c.latitude, c.longitude))) {
+                            continue;
+                        }
+                        if (temp != c.userid && usercount > 0) {
+                            avgsum += sum / usercount;
+                            usercount = 1;
+                            sum = 0;
+                            diffcount++;
+                            temp = c.userid;
+                        }
+                        sum += c.score;
+                        usercount++;
+                    }
+                    if (usercount > 0) avgsum += sum / usercount;
+                }
+                double happy = 100*avgsum/diffcount;
+                String s;
+                if (happy >= 55 && happy <= 70){
+                    s = "happy.  :)";
+                }
+                else if (happy > 70) {
+                    s = "very happy!  :D";
+                }
+                else if (happy <= 45 && happy >= 30){
+                    s = "sad.  :(";
+                }
+                else if (happy < 30) {
+                    s = "very sad...  :'(";
+                }
+                else {
+                    s = "neutral.  :|";
+                }
+                Toast.makeText(getApplicationContext(),
+                        "The average happiness here is: "+String.format("%.2f", 100*avgsum/diffcount)+"%,\nwhich seems to be: "+s,
+                        Toast.LENGTH_SHORT).show();
+                Log.e(TAG, ""+100*avgsum/diffcount+"%");
+
+                touched = false;
+            }
+        }
+        else {
+            time1 = new Date().getTime();
+            touched = true;
+            lat1 = point.latitude;
+            lon1 = point.longitude;
+        }
+        }
+    }
