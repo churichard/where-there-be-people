@@ -14,8 +14,8 @@
     <ImageView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:contentDescription="@null"
-        android:background="#80000000" />
+        android:background="#80000000"
+        android:contentDescription="@null" />
 
     <TextView
         android:id="@+id/title_text"
@@ -28,6 +28,21 @@
         android:textColor="#ffffff"
         android:textSize="32sp"
         android:textStyle="bold" />
+
+    <com.facebook.login.widget.LoginButton
+        android:id="@+id/facebook_login_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/twitter_login_button"
+        android:layout_alignLeft="@+id/twitter_login_button"
+        android:layout_alignRight="@+id/twitter_login_button"
+        android:layout_centerHorizontal="true"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="20dp"
+        android:layout_marginTop="20dp"
+        android:paddingBottom="12sp"
+        android:paddingTop="12sp"
+        android:textSize="16sp" />
 
     <com.twitter.sdk.android.core.identity.TwitterLoginButton
         android:id="@+id/twitter_login_button"

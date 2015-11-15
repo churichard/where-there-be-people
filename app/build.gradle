@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId "hackprincetonf2015.wheretherebepeople"
-        minSdkVersion 14
+        minSdkVersion 15
         targetSdkVersion 22
         versionCode 1
         versionName "1.0"
@@ -45,6 +45,7 @@ dependencies {
     compile 'com.google.android.gms:play-services-base:8.3.0'
     compile 'com.google.android.gms:play-services-location:8.3.0'
     compile 'com.mcxiaoke.volley:library:1.0.19'
+    compile 'com.facebook.android:facebook-android-sdk:4.6.0'
     compile('com.twitter.sdk.android:twitter:1.10.0@aar') {
         transitive = true;
     }

@@ -19,6 +19,10 @@ import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
+import com.facebook.AccessToken;
+import com.facebook.GraphRequest;
+import com.facebook.GraphResponse;
+import com.facebook.HttpMethod;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
@@ -56,14 +60,13 @@ import java.util.Map;
 public class MapsActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
-        LocationListener {
+        LocationListener, OnStatusGetListener {
 
     public static final String TAG = MapsActivity.class.getSimpleName();
 
     private TwitterSession session;
     private MobileServiceClient mClient;
     private MobileServiceTable<Coordinates> mCoordinateTable;
-    private MobileServiceTable<Index> mIndexTable;
 
     /*
      * Define a request code to send to Google Play services
@@ -80,6 +83,7 @@ public class MapsActivity extends AppCompatActivity implements
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
     private RequestQueue queue;
+    private String userId;
 
     private Handler fetchHandler;
 
@@ -99,7 +103,6 @@ public class MapsActivity extends AppCompatActivity implements
         }
 
         mCoordinateTable = mClient.getTable(Coordinates.class);
-        mIndexTable = mClient.getTable(Index.class);
 
         fetchHandler = new Handler();
 
@@ -119,70 +122,112 @@ public class MapsActivity extends AppCompatActivity implements
                 .setInterval(10 * 1000)        // 10 seconds, in milliseconds
                 .setFastestInterval(10 * 1000); // 1 second, in milliseconds
 
-        queue = Volley.newRequestQueue(getApplicationContext());
+        queue = Volley.newRequestQueue(this);
 
         session = Twitter.getInstance().core.getSessionManager().getActiveSession();
-        Twitter.getApiClient(session).getAccountService()
-                .verifyCredentials(true, false, new Callback<User>() {
-                    @Override
-                    public void success(Result<User> userResult) {
-                        User user = userResult.data;
-                        Tweet tweet = user.status;
-                        Log.d(TAG, tweet.text + "");
+        if (session != null) {
+            Twitter.getApiClient(session).getAccountService()
+                    .verifyCredentials(true, false, new Callback<User>() {
+                        @Override
+                        public void success(Result<User> userResult) {
+                            userId = Long.toString(session.getUserId());
+                            User user = userResult.data;
+                            Tweet tweet = user.status;
+                            Log.d(TAG, tweet.text + "");
 
-                        String tweetText = tweet.text.replace(" ", "+");
+                            String tweetText = tweet.text.replace(" ", "%20");
+                            callback(tweetText);
+                        }
 
-                        StringRequest request = new StringRequest(
-                                Request.Method.GET,
-                                "https://api.datamarket.azure.com/data.ashx/amla/text-analytics/v1/GetSentiment?Text=" + tweetText,
-                                new Response.Listener<String>() {
-                                    @Override
-                                    public void onResponse(String response) {
-                                        try {
-                                            JSONObject jsonObject = new JSONObject(response);
-                                            score = jsonObject.optDouble("Score");
-                                            Log.d("Score", score + "");
+                        @Override
+                        public void failure(TwitterException e) {
+                        }
+                    });
+        }
 
-                                        } catch (JSONException e) {
-                                            Log.e(TAG, e.toString());
-                                        }
-                                    }
-                                },
-                                new Response.ErrorListener() {
-                                    @Override
-                                    public void onErrorResponse(VolleyError error) {
-                                        if (error.networkResponse != null && error.networkResponse.data != null) {
-                                            Log.e(TAG, new VolleyError(new String(error.networkResponse.data)).toString());
-                                        }
-                                    }
-                                }) {
-                            @Override
-                            public Map<String, String> getHeaders() throws AuthFailureError {
-                                HashMap<String, String> params = new HashMap<>();
-                                params.put("Authorization", "Basic QWNjb3VudEtleTo1OGg1NFNLYkdSVXc0QWdvK2lmRG5WbjdMZUZmTzY2b21WQitWNUQ3ZGxR");
-                                params.put("Accept", "application/json");
+        if (AccessToken.getCurrentAccessToken() != null) {
+            // Store user id
+            new GraphRequest(
+                    AccessToken.getCurrentAccessToken(),
+                    "/me",
+                    null,
+                    HttpMethod.GET,
+                    new GraphRequest.Callback() {
+                        public void onCompleted(GraphResponse response) {
+                            userId = response.getJSONObject().optString("id");
+                        }
+                    }
+            ).executeAsync();
 
-                                return params;
+            new GraphRequest(
+                    AccessToken.getCurrentAccessToken(),
+                    "/me/feed",
+                    null,
+                    HttpMethod.GET,
+                    new GraphRequest.Callback() {
+                        public void onCompleted(GraphResponse response) {
+                            Log.d("Facebook Response", response.toString());
+                            String status = "";
+                            try {
+                                status = response.getJSONObject().optJSONArray("data")
+                                        .getJSONObject(0).optString("message");
+                            } catch (JSONException e) {
+                                Log.e(TAG, e.toString());
                             }
-                        };
-                        request.setRetryPolicy(new DefaultRetryPolicy(
-                                10000,
-                                DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
-                                DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
-                        queue.add(request);
+
+                            status = status.replace(" ", "%20");
+                            Log.d("FB Status", status + "");
+
+                            callback(status);
+                        }
                     }
-
-                    @Override
-                    public void failure(TwitterException e) {
-                    }
-
-                });
-
-//        TwitterSession session = Twitter.getInstance().core.getSessionManager().getActiveSession();
-//        String msg = "@" + session.getUserName() + " logged in! (#" + session.getUserId() + ")";
-//        Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_LONG).show();
+            ).executeAsync();
+        }
 
         setUpMapIfNeeded();
+    }
+
+    @Override
+    public void callback(String status) {
+        Log.d("Status", status);
+        StringRequest request = new StringRequest(
+                Request.Method.GET,
+                "https://api.datamarket.azure.com/data.ashx/amla/text-analytics/v1/GetSentiment?Text=" + "hello",
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String response) {
+                        try {
+                            Log.d("AZURE response", response+"");
+                            JSONObject jsonObject = new JSONObject(response);
+                            score = jsonObject.optDouble("Score");
+                            Log.d("Score", score + "");
+                        } catch (JSONException e) {
+                            Log.e(TAG, e.toString());
+                        }
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        if (error.networkResponse != null && error.networkResponse.data != null) {
+                            Log.e(TAG, new VolleyError(new String(error.networkResponse.data)).toString());
+                        }
+                    }
+                }) {
+            @Override
+            public Map<String, String> getHeaders() throws AuthFailureError {
+                HashMap<String, String> params = new HashMap<>();
+                params.put("Authorization", "Basic QWNjb3VudEtleTo1OGg1NFNLYkdSVXc0QWdvK2lmRG5WbjdMZUZmTzY2b21WQitWNUQ3ZGxR");
+                params.put("Accept", "application/json");
+
+                return params;
+            }
+        };
+        request.setRetryPolicy(new DefaultRetryPolicy(
+                10000,
+                DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
+                DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
+        queue.add(request);
     }
 
     @Override
@@ -253,31 +298,27 @@ public class MapsActivity extends AppCompatActivity implements
     private void drawPath(MobileServiceList<Coordinates> points) {
         mMap.clear();
 
-        Color heat = new Color();
-
         MarkerOptions options;
         PolylineOptions currentline = new PolylineOptions();
 
         for (int i = 0; i < points.size() - 1; i++) {
-            Log.d(TAG, ""+points.get(i).userid+": "+points.get(i).latitude+", " +points.get(i).longitude);
+//            Log.d(TAG, "" + points.get(i).userid + ": " + points.get(i).latitude + ", " + points.get(i).longitude);
 
-            if (points.get(i).userid == points.get(i+1).userid) {
+            if (points.get(i).userid.equals(points.get(i + 1).userid)) {
                 LatLng point1 = new LatLng(points.get(i).latitude, points.get(i).longitude);
-                LatLng point2 = new LatLng(points.get(i + 1).latitude, points.get(i + 1).longitude);
-                currentline.add(point1).width(16).color(heat.argb(50, 160, 0, 0));
-            }
-            else {
+//                LatLng point2 = new LatLng(points.get(i + 1).latitude, points.get(i + 1).longitude);
+                currentline.add(point1).width(16).color(Color.argb(50, 160, 0, 0));
+            } else {
                 LatLng lastPoint = new LatLng(points.get(i).latitude, points.get(i).longitude);
-                if (points.get(i).userid == session.getUserId()) {
+                if (points.get(i).userid.equals(userId)) {
                     options = new MarkerOptions()
                             .position(lastPoint)
                             .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
                             .title("Your location");
-                }
-                else {
+                } else {
                     float[] hsv = new float[3];
                     double user_score = points.get(i).score;
-                    Color.RGBToHSV((int)(user_score * 255), 0, (int)((1 - user_score) * 255), hsv);
+                    Color.RGBToHSV((int) (user_score * 255), 0, (int) ((1 - user_score) * 255), hsv);
                     options = new MarkerOptions()
                             .position(lastPoint)
                             .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
@@ -288,17 +329,16 @@ public class MapsActivity extends AppCompatActivity implements
             }
         }
 
-        LatLng lastPoint = new LatLng(points.get(points.size()-1).latitude, points.get(points.size()-1).longitude);
-        if (points.get(points.size()-1).userid == session.getUserId()) {
+        LatLng lastPoint = new LatLng(points.get(points.size() - 1).latitude, points.get(points.size() - 1).longitude);
+        if (points.get(points.size() - 1).userid.equals(userId)) {
             options = new MarkerOptions()
                     .position(lastPoint)
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
                     .title("Your location");
-        }
-        else {
+        } else {
             float[] hsv = new float[3];
             double user_score = points.get(points.size() - 1).score;
-            Color.RGBToHSV((int)(user_score * 255), 0, (int)(255 - (user_score * 255)), hsv);
+            Color.RGBToHSV((int) (user_score * 255), 0, (int) (255 - (user_score * 255)), hsv);
             options = new MarkerOptions()
                     .position(lastPoint)
                     .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
@@ -375,9 +415,9 @@ public class MapsActivity extends AppCompatActivity implements
                                 orderBy("time", QueryOrder.Ascending).
                                 execute().get();
 
-                        for (Coordinates c : coordinates) {
-                            Log.d(TAG, "userid: " + c.userid + " , time: " + c.time);
-                        }
+//                        for (Coordinates c : coordinates) {
+//                            Log.d(TAG, "userid: " + c.userid + " , time: " + c.time);
+//                        }
                     } catch (Exception e) {
                         Log.e(TAG, "ERROR NULLPOINTEREXCEPTION");
                     }
@@ -395,11 +435,12 @@ public class MapsActivity extends AppCompatActivity implements
     };
 
     private void insertDB(double lat, double lon) {
+        Log.d("Insert DB Score", score + "");
         if (score >= 0) {
             Coordinates coordinate = new Coordinates();
             coordinate.latitude = lat;
             coordinate.longitude = lon;
-            coordinate.userid = session.getUserId();
+            coordinate.userid = userId;
             coordinate.score = score;
             coordinate.time = new Date().getTime();
             mCoordinateTable.insert(coordinate, new TableOperationCallback<Coordinates>() {
@@ -407,6 +448,7 @@ public class MapsActivity extends AppCompatActivity implements
                     if (exception == null) {
                         Log.d(TAG, "Insert succeeded");
                     } else {
+                        Log.e(TAG, exception.toString());
                         Log.d(TAG, "Insert failed");
                     }
                 }
