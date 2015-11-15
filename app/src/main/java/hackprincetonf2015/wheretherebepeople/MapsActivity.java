@@ -240,7 +240,6 @@ public class MapsActivity extends AppCompatActivity implements
      */
     private void setUpMap() {
         mMap.getUiSettings().setZoomControlsEnabled(true);
-//        testPoints();
         fetchDB.run();
     }
 
@@ -397,20 +396,6 @@ public class MapsActivity extends AppCompatActivity implements
             fetchHandler.postDelayed(this, DB_FETCH_DELAY);
         }
     };
-
-    private void testPoints() {
-        double lat = Math.random()*90;
-        double lon = Math.random()*180;
-
-        for (int i = 0; i < 20; i++) {
-
-            lat += 5*(Math.random()-.5);
-            lon += 10*(Math.random()-.5);
-
-            insertDB(lat, lon);
-        }
-
-    }
 
     private void insertDB(double lat, double lon) {
         if (score >= 0) {
