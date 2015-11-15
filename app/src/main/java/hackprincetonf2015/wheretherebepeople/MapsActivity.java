@@ -71,7 +71,7 @@ public class MapsActivity extends AppCompatActivity implements
      */
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 
-    private final static int DB_FETCH_DELAY = 1000; // time interval between db fetches
+    private final static int DB_FETCH_DELAY = 10000; // time interval between db fetches
 
     private double score = -1.0; // tweet score of user
 
