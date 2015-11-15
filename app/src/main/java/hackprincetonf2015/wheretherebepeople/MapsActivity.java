@@ -52,7 +52,7 @@ public class MapsActivity extends AppCompatActivity implements
     private MobileServiceTable<Coordinates> mCoordinateTable;
     private MobileServiceTable<Index> mIndexTable;
 
-    private long thisUser = 777777;
+    private long thisUser = 101091290;
 
     /*
      * Define a request code to send to Google Play services
@@ -165,7 +165,7 @@ public class MapsActivity extends AppCompatActivity implements
      */
     private void setUpMap() {
         mMap.getUiSettings().setZoomControlsEnabled(true);
-        //testPoints();
+        testPoints();
         fetchDB.run();
 
     }
@@ -198,10 +198,11 @@ public class MapsActivity extends AppCompatActivity implements
 //                .title("Final position");
 //        mMap.addMarker(options);
 
-//        mMap.clear();
+        mMap.clear();
 
         Color heat = new Color();
 
+        MarkerOptions options;
         PolylineOptions currentline = new PolylineOptions();
 
         for (int i = 0; i < points.size() - 1; i++) {
@@ -215,23 +216,36 @@ public class MapsActivity extends AppCompatActivity implements
             else {
                 LatLng lastPoint = new LatLng(points.get(i).latitude, points.get(i).longitude);
                 if (points.get(i).userid == thisUser) {
-                    MarkerOptions options = new MarkerOptions()
+                    options = new MarkerOptions()
                             .position(lastPoint)
                             .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
                             .title("Your location");
-                    mMap.addMarker(options);
                 }
                 else {
-                    MarkerOptions options = new MarkerOptions()
+                    options = new MarkerOptions()
                             .position(lastPoint)
                             .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
-
-                    mMap.addMarker(options);
                 }
+                mMap.addMarker(options);
                 mMap.addPolyline(currentline.add(lastPoint));
                 currentline = new PolylineOptions();
             }
         }
+
+        LatLng lastPoint = new LatLng(points.get(points.size()-1).latitude, points.get(points.size()-1).longitude);
+        if (points.get(points.size()-1).userid == thisUser) {
+            options = new MarkerOptions()
+                    .position(lastPoint)
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
+                    .title("Your location");
+        }
+        else {
+            options = new MarkerOptions()
+                    .position(lastPoint)
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+        }
+        mMap.addMarker(options);
+        mMap.addPolyline(currentline.add(lastPoint));
     }
 
     @Override
@@ -318,10 +332,10 @@ public class MapsActivity extends AppCompatActivity implements
         double lat = Math.random()*90;
         double lon = Math.random()*180;
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 20; i++) {
 
-            lat += Math.random()-.5;
-            lon += Math.random()-.5;
+            lat += 5*(Math.random()-.5);
+            lon += 10*(Math.random()-.5);
 
             insertDB(lat, lon);
         }
