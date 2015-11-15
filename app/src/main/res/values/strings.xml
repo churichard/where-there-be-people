@@ -6,4 +6,5 @@
     <string name="google_maps_key" translatable="false" templateMergeStrategy="preserve">
         AIzaSyA_lNZZ44uFvfJDCPrdqVIdZ_KVulfPDTk
     </string>
+    <string name="facebook_app_id">526481017518975</string>
 </resources>
