@@ -448,7 +448,7 @@ public class MapsActivity extends AppCompatActivity implements
      				scores[i] = Math.random();
      			}
      			
-     			int baseLat = 0, baseLon = 90; //please set location to princeton
+     			double baseLat = 40.3571, baseLon = -74.6702; //please set location to princeton
      			double[] latdiff = new double[numUsers];
      			double[] londiff = new double[numUsers];
      			for (int i = 0; i < numUsers; i++) {
