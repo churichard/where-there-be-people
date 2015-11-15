@@ -63,7 +63,6 @@ public class MapsActivity extends AppCompatActivity implements
     private TwitterSession session;
     private MobileServiceClient mClient;
     private MobileServiceTable<Coordinates> mCoordinateTable;
-    private MobileServiceTable<Index> mIndexTable;
 
     /*
      * Define a request code to send to Google Play services
@@ -99,8 +98,6 @@ public class MapsActivity extends AppCompatActivity implements
         }
 
         mCoordinateTable = mClient.getTable(Coordinates.class);
-        mIndexTable = mClient.getTable(Index.class);
-
         fetchHandler = new Handler();
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
@@ -250,6 +247,25 @@ public class MapsActivity extends AppCompatActivity implements
         insertDB(currentLatitude, currentLongitude);
     }
 
+    private MarkerOptions getMarkerOptions(LatLng latlng, Coordinates point) {
+        MarkerOptions options;
+        if (point.userid == session.getUserId()) {
+            options = new MarkerOptions()
+                    .position(latlng)
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+                    .title("Your location");
+        }
+        else {
+            float[] hsv = new float[3];
+            double user_score = point.score;
+            Color.RGBToHSV((int)(user_score * 255), 0, (int)((1 - user_score) * 255), hsv);
+            options = new MarkerOptions()
+                    .position(latlng)
+                    .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
+        }
+        return options;
+    }
+
     private void drawPath(MobileServiceList<Coordinates> points) {
         mMap.clear();
 
@@ -268,20 +284,7 @@ public class MapsActivity extends AppCompatActivity implements
             }
             else {
                 LatLng lastPoint = new LatLng(points.get(i).latitude, points.get(i).longitude);
-                if (points.get(i).userid == session.getUserId()) {
-                    options = new MarkerOptions()
-                            .position(lastPoint)
-                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
-                            .title("Your location");
-                }
-                else {
-                    float[] hsv = new float[3];
-                    double user_score = points.get(i).score;
-                    Color.RGBToHSV((int)(user_score * 255), 0, (int)((1 - user_score) * 255), hsv);
-                    options = new MarkerOptions()
-                            .position(lastPoint)
-                            .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
-                }
+                options = getMarkerOptions(lastPoint, points.get(i));
                 mMap.addMarker(options);
                 mMap.addPolyline(currentline.add(lastPoint));
                 currentline = new PolylineOptions();
@@ -289,20 +292,7 @@ public class MapsActivity extends AppCompatActivity implements
         }
 
         LatLng lastPoint = new LatLng(points.get(points.size()-1).latitude, points.get(points.size()-1).longitude);
-        if (points.get(points.size()-1).userid == session.getUserId()) {
-            options = new MarkerOptions()
-                    .position(lastPoint)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
-                    .title("Your location");
-        }
-        else {
-            float[] hsv = new float[3];
-            double user_score = points.get(points.size() - 1).score;
-            Color.RGBToHSV((int)(user_score * 255), 0, (int)(255 - (user_score * 255)), hsv);
-            options = new MarkerOptions()
-                    .position(lastPoint)
-                    .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
-        }
+        options = getMarkerOptions(lastPoint, points.get(points.size()-1));
         mMap.addMarker(options);
         mMap.addPolyline(currentline.add(lastPoint));
     }
