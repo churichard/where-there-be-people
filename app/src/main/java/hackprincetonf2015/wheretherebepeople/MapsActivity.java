@@ -75,6 +75,8 @@ public class MapsActivity extends AppCompatActivity implements
 
     private final static int DB_FETCH_DELAY = 1000; // time interval between db fetches
 
+    private double score = -1.0; // tweet score of user
+
     private GoogleMap mMap; // Might be null if Google Play services APK is not available.
 
     private GoogleApiClient mGoogleApiClient;
@@ -140,8 +142,9 @@ public class MapsActivity extends AppCompatActivity implements
                                     public void onResponse(String response) {
                                         try {
                                             JSONObject jsonObject = new JSONObject(response);
-                                            double score = jsonObject.optDouble("Score");
+                                            score = jsonObject.optDouble("Score");
                                             Log.d("Score", score + ""); // TODO use this score for something
+
                                         } catch (JSONException e) {
                                             Log.e(TAG, e.toString());
                                         }
@@ -271,13 +274,16 @@ public class MapsActivity extends AppCompatActivity implements
                 if (points.get(i).userid == session.getUserId()) {
                     options = new MarkerOptions()
                             .position(lastPoint)
-                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
                             .title("Your location");
                 }
                 else {
+                    float[] hsv = new float[3];
+                    double score = points.get(i).score;
+                    Color.RGBToHSV((int)(255 - (score * 255)), 0, (int)(score * 255), hsv);
                     options = new MarkerOptions()
                             .position(lastPoint)
-                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+                            .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
                 }
                 mMap.addMarker(options);
                 mMap.addPolyline(currentline.add(lastPoint));
@@ -289,13 +295,16 @@ public class MapsActivity extends AppCompatActivity implements
         if (points.get(points.size()-1).userid == session.getUserId()) {
             options = new MarkerOptions()
                     .position(lastPoint)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
                     .title("Your location");
         }
         else {
+            float[] hsv = new float[3];
+            double score = points.get(points.size() - 1).score;
+            Color.RGBToHSV((int)(255 - (score * 255)), 0, (int)(score * 255), hsv);
             options = new MarkerOptions()
                     .position(lastPoint)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+                    .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
         }
         mMap.addMarker(options);
         mMap.addPolyline(currentline.add(lastPoint));
@@ -404,20 +413,23 @@ public class MapsActivity extends AppCompatActivity implements
     }
 
     private void insertDB(double lat, double lon) {
-        Coordinates coordinate = new Coordinates();
-        coordinate.latitude = lat;
-        coordinate.longitude = lon;
-        coordinate.userid = session.getUserId();
-        coordinate.time = new Date().getTime();
-        mCoordinateTable.insert(coordinate, new TableOperationCallback<Coordinates>() {
-            public void onCompleted(Coordinates entity, Exception exception, ServiceFilterResponse response) {
-                if (exception == null) {
-                    Log.d(TAG, "Insert succeeded");
-                } else {
-                    Log.d(TAG, "Insert failed");
+        if (score >= 0) {
+            Coordinates coordinate = new Coordinates();
+            coordinate.latitude = lat;
+            coordinate.longitude = lon;
+            coordinate.userid = session.getUserId();
+            coordinate.score = score;
+            coordinate.time = new Date().getTime();
+            mCoordinateTable.insert(coordinate, new TableOperationCallback<Coordinates>() {
+                public void onCompleted(Coordinates entity, Exception exception, ServiceFilterResponse response) {
+                    if (exception == null) {
+                        Log.d(TAG, "Insert succeeded");
+                    } else {
+                        Log.d(TAG, "Insert failed");
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     @Override

@@ -7,6 +7,7 @@ public class Coordinates {
     public String Id;
     public long    userid;
     public long    time;
+    public double score;
     public double longitude;
     public double latitude;
 
