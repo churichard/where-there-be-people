@@ -165,7 +165,9 @@ public class MapsActivity extends AppCompatActivity implements
      */
     private void setUpMap() {
         mMap.getUiSettings().setZoomControlsEnabled(true);
+        //testPoints();
         fetchDB.run();
+
     }
 
     private void handleNewLocation(Location location) {
@@ -195,6 +197,8 @@ public class MapsActivity extends AppCompatActivity implements
 //                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
 //                .title("Final position");
 //        mMap.addMarker(options);
+
+//        mMap.clear();
 
         Color heat = new Color();
 
@@ -309,6 +313,20 @@ public class MapsActivity extends AppCompatActivity implements
             fetchHandler.postDelayed(this, DB_FETCH_DELAY);
         }
     };
+
+    private void testPoints() {
+        double lat = Math.random()*90;
+        double lon = Math.random()*180;
+
+        for (int i = 0; i < 5; i++) {
+
+            lat += Math.random()-.5;
+            lon += Math.random()-.5;
+
+            insertDB(lat, lon);
+        }
+
+    }
 
     private void insertDB(double lat, double lon) {
         Coordinates coordinate = new Coordinates();
