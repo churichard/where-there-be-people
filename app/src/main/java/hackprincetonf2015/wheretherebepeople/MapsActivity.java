@@ -73,7 +73,7 @@ public class MapsActivity extends AppCompatActivity implements
      */
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 
-    private final static int DB_FETCH_DELAY = 10000; // time interval between db fetches
+    private final static int DB_FETCH_DELAY = 1000; // time interval between db fetches
 
     private GoogleMap mMap; // Might be null if Google Play services APK is not available.
 
@@ -117,7 +117,7 @@ public class MapsActivity extends AppCompatActivity implements
         mLocationRequest = LocationRequest.create()
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(10 * 1000)        // 10 seconds, in milliseconds
-                .setFastestInterval(1 * 1000); // 1 second, in milliseconds
+                .setFastestInterval(10 * 1000); // 1 second, in milliseconds
 
         queue = Volley.newRequestQueue(getApplicationContext());
 
@@ -248,26 +248,9 @@ public class MapsActivity extends AppCompatActivity implements
         double currentLongitude = location.getLongitude();
 
         insertDB(currentLatitude, currentLongitude);
-
-        LatLng latLng = new LatLng(currentLatitude, currentLongitude);
-
-        MarkerOptions options = new MarkerOptions()
-                .position(latLng)
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
-                .title("Your location");
-        mMap.addMarker(options);
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15.0f));
     }
 
     private void drawPath(MobileServiceList<Coordinates> points) {
-//        Coordinates last_point = points.get(points.size() - 1);
-//        LatLng lastPoint = new LatLng(last_point.latitude, last_point.longitude);
-//        MarkerOptions options = new MarkerOptions()
-//                .position(lastPoint)
-//                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
-//                .title("Final position");
-//        mMap.addMarker(options);
-
         mMap.clear();
 
         Color heat = new Color();
@@ -325,6 +308,13 @@ public class MapsActivity extends AppCompatActivity implements
             LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
         } else {
             handleNewLocation(location);
+            double currentLatitude = location.getLatitude();
+            double currentLongitude = location.getLongitude();
+
+            insertDB(currentLatitude, currentLongitude);
+
+            LatLng latLng = new LatLng(currentLatitude, currentLongitude);
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15.0f));
         }
     }
 
@@ -375,14 +365,14 @@ public class MapsActivity extends AppCompatActivity implements
                     MobileServiceList<Coordinates> coordinates = null;
                     //MobileServiceList<Index> users = null;
                     try {
-                        //mCoordinateTable.where().field("userId").eq(thisUser).execute().get();
                         coordinates = mCoordinateTable.
-                                orderBy("time", QueryOrder.Ascending).
                                 orderBy("userid", QueryOrder.Ascending).
+                                orderBy("time", QueryOrder.Ascending).
                                 execute().get();
 
-                        Log.d(TAG, "coordinates: "+coordinates.size());
-                        //users = mIndexTable.select("userId").execute().get();
+                        for (Coordinates c : coordinates) {
+                            Log.d(TAG, "userid: " + c.userid + " , time: " + c.time);
+                        }
                     } catch (Exception e) {
                         Log.e(TAG, "ERROR NULLPOINTEREXCEPTION");
                     }
@@ -390,8 +380,9 @@ public class MapsActivity extends AppCompatActivity implements
                 }
 
                 protected void onPostExecute(MobileServiceList<Coordinates> coordinates) {
-                    Log.e(TAG, "ERROR EXECUTED");
-                    drawPath(coordinates);
+                    if (coordinates.size() > 0) {
+                        drawPath(coordinates);
+                    }
                 }
             }.execute();
             fetchHandler.postDelayed(this, DB_FETCH_DELAY);
