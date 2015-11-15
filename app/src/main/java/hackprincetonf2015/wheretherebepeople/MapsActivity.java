@@ -61,8 +61,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-import retrofit.http.HEAD;
-
 public class MapsActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
@@ -288,7 +286,7 @@ public class MapsActivity extends AppCompatActivity implements
 
     private MarkerOptions getMarkerOptions(LatLng latlng, Coordinates point) {
         MarkerOptions options;
-        if (point.userid.equals(""+session.getUserId())) {
+        if (point.userid.equals(userId)) {
             options = new MarkerOptions()
                     .position(latlng)
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
