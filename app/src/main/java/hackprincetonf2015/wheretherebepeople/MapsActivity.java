@@ -404,6 +404,57 @@ public class MapsActivity extends AppCompatActivity implements
             fetchHandler.postDelayed(this, DB_FETCH_DELAY);
         }
     };
+    
+    private void demo() {
+     	new AsyncTask<Void, Void, MobileServiceList<Coordinates>>() { 
+     		protected MobileServiceList<Coordinates> doInBackground(Void... no) {
+     			final int numUsers = 10;
+     			double[] scores = new double[numUsers];
+     			for (int i = 0; i < numUsers; i++) {
+     				scores[i] = Math.random();
+     			}
+     			
+     			int baseLat = 0, baseLon = 90; //please set location to princeton
+     			double[] latdiff = new double[numUsers];
+     			double[] londiff = new double[numUsers];
+     			for (int i = 0; i < numUsers; i++) {
+     			        latdiff[i] += (Math.random()-.5);
+     			        londiff[i] += (Math.random()-.5);
+     			}
+     			
+     			while(true) {
+     				for (int i = 0; i<numUsers; i++) {
+     					Coordinates coordinate = new Coordinates(); 
+     					coordinate.latitude = baseLat + latdiff[i]; 
+     					coordinate.longitude = baseLon + londiff[i]; 
+     					coordinate.userid = ""+i; 
+     					coordinate.score = score[i]; 
+     					coordinate.time = new Date().getTime(); 
+     					mCoordinateTable.insert(coordinate, new TableOperationCallback<Coordinates>() { 
+     						public void onCompleted(Coordinates entity, Exception exception, ServiceFilterResponse response) { 
+     							if (exception == null) { 
+     								//Log.d(TAG, "Insert succeeded: user " + i); 
+     							} else { 
+     								//Log.d(TAG, "Insert failed"); 
+     							} 
+     						} 
+     					});
+                                        //update score
+     					score[i] += (Math.random()-.5)/5;
+     					if (score[i] >= 1) score[i] = .99;
+                                        if (score[i] < 0) score[i] = 0;
+                                        
+                                        //update location
+     					latdiff[i] += (Math.random()-.5)/5;
+     					londiff[i] += (Math.random()-.5)/5;
+     				}
+     				//potentially wait
+     			}
+     		}
+
+     	}
+     }
+    
     private void testPoints() {
         double lat = Math.random()*90;
         double lon = Math.random()*180;
