@@ -5,7 +5,8 @@ package hackprincetonf2015.wheretherebepeople;
  */
 public class Coordinates {
     public String Id;
-    public long    userId;
+    public long    userid;
+    public long    time;
     public double longitude;
     public double latitude;
 

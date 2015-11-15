@@ -1,9 +1,11 @@
 package hackprincetonf2015.wheretherebepeople;
 
 import android.content.IntentSender;
+import android.graphics.Color;
 import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -23,15 +25,20 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.microsoft.windowsazure.mobileservices.MobileServiceClient;
 import com.microsoft.windowsazure.mobileservices.MobileServiceList;
 import com.microsoft.windowsazure.mobileservices.http.ServiceFilterResponse;
+import com.microsoft.windowsazure.mobileservices.table.MobileServiceTable;
 import com.microsoft.windowsazure.mobileservices.table.TableOperationCallback;
+import com.microsoft.windowsazure.mobileservices.table.query.QueryOrder;
 import com.twitter.sdk.android.Twitter;
 import com.twitter.sdk.android.core.Callback;
 import com.twitter.sdk.android.core.Result;
@@ -44,6 +51,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.net.MalformedURLException;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,6 +64,8 @@ public class MapsActivity extends AppCompatActivity implements
 
     private TwitterSession session;
     private MobileServiceClient mClient;
+    private MobileServiceTable<Coordinates> mCoordinateTable;
+    private MobileServiceTable<Index> mIndexTable;
 
 //    private long thisUser = 12345;
 
@@ -65,11 +75,15 @@ public class MapsActivity extends AppCompatActivity implements
      */
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 
+    private final static int DB_FETCH_DELAY = 10000; // time interval between db fetches
+
     private GoogleMap mMap; // Might be null if Google Play services APK is not available.
 
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
     private RequestQueue queue;
+
+    private Handler fetchHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,10 +97,13 @@ public class MapsActivity extends AppCompatActivity implements
                     this
             );
         } catch (MalformedURLException e) {
-            Log.e(TAG, e.toString());
+            e.printStackTrace();
         }
 
-        setUpMapIfNeeded();
+        mCoordinateTable = mClient.getTable(Coordinates.class);
+        mIndexTable = mClient.getTable(Index.class);
+
+        fetchHandler = new Handler();
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         toolbar.setTitle("Where There Be People");
@@ -161,8 +178,12 @@ public class MapsActivity extends AppCompatActivity implements
                     }
 
                 });
-        String msg = "@" + session.getUserName() + " logged in! (#" + session.getUserId() + ")";
-        Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_LONG).show();
+
+//        TwitterSession session = Twitter.getInstance().core.getSessionManager().getActiveSession();
+//        String msg = "@" + session.getUserName() + " logged in! (#" + session.getUserId() + ")";
+//        Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_LONG).show();
+
+        setUpMapIfNeeded();
     }
 
     @Override
@@ -217,7 +238,9 @@ public class MapsActivity extends AppCompatActivity implements
      * This should only be called once and when we are sure that {@link #mMap} is not null.
      */
     private void setUpMap() {
-        fetchDB();
+        mMap.getUiSettings().setZoomControlsEnabled(true);
+//        testPoints();
+        fetchDB.run();
     }
 
     private void handleNewLocation(Location location) {
@@ -230,12 +253,73 @@ public class MapsActivity extends AppCompatActivity implements
 
         LatLng latLng = new LatLng(currentLatitude, currentLongitude);
 
-        //mMap.addMarker(new MarkerOptions().position(new LatLng(currentLatitude, currentLongitude)).title("Current Location"));
         MarkerOptions options = new MarkerOptions()
                 .position(latLng)
-                .title("I am here!");
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
+                .title("Your location");
         mMap.addMarker(options);
         mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+        CameraUpdate zoom = CameraUpdateFactory.zoomTo(15);
+        mMap.animateCamera(zoom);
+    }
+
+    private void drawPath(MobileServiceList<Coordinates> points) {
+//        Coordinates last_point = points.get(points.size() - 1);
+//        LatLng lastPoint = new LatLng(last_point.latitude, last_point.longitude);
+//        MarkerOptions options = new MarkerOptions()
+//                .position(lastPoint)
+//                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
+//                .title("Final position");
+//        mMap.addMarker(options);
+
+        mMap.clear();
+
+        Color heat = new Color();
+
+        MarkerOptions options;
+        PolylineOptions currentline = new PolylineOptions();
+
+        for (int i = 0; i < points.size() - 1; i++) {
+            Log.d(TAG, ""+points.get(i).userid+": "+points.get(i).latitude+", " +points.get(i).longitude);
+
+            if (points.get(i).userid == points.get(i+1).userid) {
+                LatLng point1 = new LatLng(points.get(i).latitude, points.get(i).longitude);
+                LatLng point2 = new LatLng(points.get(i + 1).latitude, points.get(i + 1).longitude);
+                currentline.add(point1).width(16).color(heat.argb(50, 160, 0, 0));
+            }
+            else {
+                LatLng lastPoint = new LatLng(points.get(i).latitude, points.get(i).longitude);
+                if (points.get(i).userid == session.getUserId()) {
+                    options = new MarkerOptions()
+                            .position(lastPoint)
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
+                            .title("Your location");
+                }
+                else {
+                    options = new MarkerOptions()
+                            .position(lastPoint)
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+                }
+                mMap.addMarker(options);
+                mMap.addPolyline(currentline.add(lastPoint));
+                currentline = new PolylineOptions();
+            }
+        }
+
+        LatLng lastPoint = new LatLng(points.get(points.size()-1).latitude, points.get(points.size()-1).longitude);
+        if (points.get(points.size()-1).userid == session.getUserId()) {
+            options = new MarkerOptions()
+                    .position(lastPoint)
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
+                    .title("Your location");
+        }
+        else {
+            options = new MarkerOptions()
+                    .position(lastPoint)
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+        }
+        mMap.addMarker(options);
+        mMap.addPolyline(currentline.add(lastPoint));
     }
 
     @Override
@@ -287,31 +371,58 @@ public class MapsActivity extends AppCompatActivity implements
         handleNewLocation(location);
     }
 
-    private void fetchDB() {
-        new AsyncTask<Void, Void, Void>() {
-            protected Void doInBackground(Void... no) {
-                try {
-                    MobileServiceList<Coordinates> test = mClient.getTable(Coordinates.class).where()
-                            .field("userId").eq(session.getUserId()).execute().get();
+    Runnable fetchDB = new Runnable() {
+        @Override
+        public void run() {
+            new AsyncTask<Void, Void, MobileServiceList<Coordinates>>() {
+                protected MobileServiceList<Coordinates> doInBackground(Void... no) {
+                    MobileServiceList<Coordinates> coordinates = null;
+                    //MobileServiceList<Index> users = null;
+                    try {
+                        //mCoordinateTable.where().field("userId").eq(thisUser).execute().get();
+                        coordinates = mCoordinateTable.
+                                orderBy("time", QueryOrder.Ascending).
+                                orderBy("userid", QueryOrder.Ascending).
+                                execute().get();
 
-                    for (Coordinates c : test) {
-                        Log.d(TAG, c.latitude + "");
+                        Log.d(TAG, "coordinates: "+coordinates.size());
+                        //users = mIndexTable.select("userId").execute().get();
+                    } catch (Exception e) {
+                        Log.e(TAG, "ERROR NULLPOINTEREXCEPTION");
                     }
-                } catch (Exception e) {
-                    Log.e(TAG, e.getMessage());
+                    return coordinates;
                 }
 
-                return null;
-            }
-        }.execute();
+                protected void onPostExecute(MobileServiceList<Coordinates> coordinates) {
+                    Log.e(TAG, "ERROR EXECUTED");
+                    drawPath(coordinates);
+                }
+            }.execute();
+            fetchHandler.postDelayed(this, DB_FETCH_DELAY);
+        }
+    };
+
+    private void testPoints() {
+        double lat = Math.random()*90;
+        double lon = Math.random()*180;
+
+        for (int i = 0; i < 20; i++) {
+
+            lat += 5*(Math.random()-.5);
+            lon += 10*(Math.random()-.5);
+
+            insertDB(lat, lon);
+        }
+
     }
 
     private void insertDB(double lat, double lon) {
         Coordinates coordinate = new Coordinates();
         coordinate.latitude = lat;
         coordinate.longitude = lon;
-        coordinate.userId = session.getUserId();
-        mClient.getTable(Coordinates.class).insert(coordinate, new TableOperationCallback<Coordinates>() {
+        coordinate.userid = session.getUserId();
+        coordinate.time = new Date().getTime();
+        mCoordinateTable.insert(coordinate, new TableOperationCallback<Coordinates>() {
             public void onCompleted(Coordinates entity, Exception exception, ServiceFilterResponse response) {
                 if (exception == null) {
                     Log.d(TAG, "Insert succeeded");
