@@ -278,8 +278,13 @@ public class MapsActivity extends AppCompatActivity implements
                 }
                 else {
                     float[] hsv = new float[3];
-                    double score = points.get(i).score;
-                    Color.RGBToHSV((int)(255 - (score * 255)), 0, (int)(score * 255), hsv);
+                    double user_score = points.get(i).score;
+                    Color.RGBToHSV((int)(user_score * 255), 0, (int)(255 - (user_score * 255)), hsv);
+                    if (user_score < 0.5){
+                        hsv[0] = BitmapDescriptorFactory.HUE_AZURE;
+                    } else {
+                        hsv[0] = BitmapDescriptorFactory.HUE_RED;
+                    }
                     options = new MarkerOptions()
                             .position(lastPoint)
                             .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
@@ -299,8 +304,13 @@ public class MapsActivity extends AppCompatActivity implements
         }
         else {
             float[] hsv = new float[3];
-            double score = points.get(points.size() - 1).score;
-            Color.RGBToHSV((int)(255 - (score * 255)), 0, (int)(score * 255), hsv);
+            double user_score = points.get(points.size() - 1).score;
+            Color.RGBToHSV((int)(user_score * 255), 0, (int)(255 - (user_score * 255)), hsv);
+            if (user_score < 0.5){
+                hsv[0] = BitmapDescriptorFactory.HUE_AZURE;
+            } else {
+                hsv[0] = BitmapDescriptorFactory.HUE_RED;
+            }
             options = new MarkerOptions()
                     .position(lastPoint)
                     .icon(BitmapDescriptorFactory.defaultMarker(hsv[0]));
